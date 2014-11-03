@@ -1,0 +1,572 @@
+#+TITLE: Evan's Emacs configuration
+#+OPTIONS: toc:4 h:4
+
+* Configuration 
+** About this file
+<<babel-init>>
+
+#+begin_src emacs-lisp  :tangle no
+;; This sets up the load path so that we can override it
+(package-initialize nil)
+;; Override the packages with the git version of Org and other packages
+(add-to-list 'load-path "~/elisp/org-mode/lisp")
+(add-to-list 'load-path "~/elisp/org-mode/contrib/lisp")
+;; Load the rest of the packages
+(package-initialize t)
+(setq package-enable-at-startup nil)
+(require 'org)
+(require 'ob-tangle)
+(org-babel-load-file (expand-file-name "~/.emacs.d/xyz.org"))
+#+end_src
+
+** Personal information
+
+#+begin_src emacs-lisp
+(setq user-full-name "xyz"
+  user-mail-address "xyzlxw@gmail.com")
+#+end_src
+ 
+** Emacs initialization
+
+*** Add my elisp directory and other files
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "~/.emacs.d")
+(add-to-list 'load-path "~/elisp")
+(add-to-list 'load-path "~/elisp/artbollocks-mode")
+#+end_src
+
+*** Add package sources
+
+#+begin_src emacs-lisp
+(add-to-list 'package-archives '("org" . "http://orgmode.org/elpa/") t)
+(add-to-list 'package-archives '("melpa" . "http://melpa.milkbox.net/packages/") t)
+(add-to-list 'package-archives '("gnu" . "http://elpa.gnu.org/packages/") t)
+#+end_src
+
+  To install a package, e.g. 'helm', you could follow below steps:
+  Use =M-x package-refresh-contents= to reload the list of packages after adding these for the first time.
+  Use =M-x package-install RET helm RET=  
+  
+*** Load secrets
+
+#+begin_src emacs-lisp
+(load "~/.emacs.secrets" t)
+#+end_src
+ 
+*** Function: xyz/byte-compile 
+
+#+begin_src emacs-lisp
+(defun xyz/byte-recompile ()
+  (interactive)
+  (byte-recompile-directory "~/.emacs.d" 0)
+  (byte-recompile-directory "~/elisp" 0))
+#+end_src
+
+*** Function: xyz/package-install
+
+ELPA makes it easy to install packages without tracking down all the
+different websites. Let's define a function that makes it easy to
+install packages. I don't actually use this a lot any more, but it can
+be handy.
+
+#+begin_src emacs-lisp
+(defun xyz/package-install (package &optional repository)
+  "Install PACKAGE if it has not yet been installed.
+If REPOSITORY is specified, use that."
+  (unless (package-installed-p package)
+    (let ((package-archives (if repository
+                                (list (assoc repository package-archives))
+                              package-archives)))
+    (package-install package))))
+#+end_src
+
+*** use-package
+
+#+begin_src emacs-lisp
+(xyz/package-install 'use-package)
+(require 'use-package)
+#+end_src
+
+*** Share my Emacs configuration
+
+I want to export my xyz.org as xyz-emacs.org to my public directory. 
+I will shift this to Github pages. 
+
+#+begin_src emacs-lisp
+(defun xyz/org-share-emacs ()
+    "Share my Emacs configuration."
+    (interactive)
+    (let* ((destination-dir "~/baiduyun/public/")
+           (destination-filename "xyz-emacs.org"))
+      (save-restriction
+        (save-excursion
+          (widen)
+          (write-region (point-min) (point-max) 
+            (expand-file-name destination-filename destination-dir))
+          (with-current-buffer (find-file-noselect (expand-file-name
+                                                    destination-filename destination-dir))
+            (org-babel-tangle-file buffer-file-name 
+                                   (expand-file-name
+                                    "xyz-emacs.el" destination-dir) "emacs-lisp")
+            (org-html-export-to-html))))))
+#+end_src
+
+** General configuration
+
+*** Set the mark at point
+
+Use =S-SPC= to set the mark. This sets the mark where point is, and activates it. 
+
+#+begin_src emacs-lisp
+(global-set-key (kbd "S-<SPC>") 'set-mark-command)
+#+end_src
+
+*** Backups
+
+By default, Emacs saves backup files in the current directory. 
+These are the files ending in =~= that are cluttering up your directory lists. 
+The following code stashes them all in =~/.emacs.d/backups=, where I can find them with =C-x C-f= (=find-file=).
+
+#+begin_src emacs-lisp
+(setq backup-directory-alist '(("." . "~/.emacs.d/backups")))
+#+end_src
+
+Save lots.
+
+#+begin_src emacs-lisp
+(setq delete-old-versions -1)
+(setq version-control t)
+(setq vc-make-backup-files t)
+(setq auto-save-file-name-transforms '((".*" "~/.emacs.d/auto-save-list/" t)))
+#+end_src
+
+*** History
+
+From http://www.wisdomandwonder.com/wordpress/wp-content/uploads/2014/03/C3F.html
+
+Save history of all things
+It is nice to have commands and their history saved so that every time you get back to work, 
+you can just re-run stuff as you need it. It isn't a radical feature, it is just part of a good user experience.
+
+#+begin_src emacs-lisp
+(setq savehist-file "~/.emacs.d/savehist")
+(savehist-mode 1)
+(setq history-length t)
+(setq history-delete-duplicates t)
+(setq savehist-save-minibuffer-history 1)
+(setq savehist-additional-variables
+      '(kill-ring
+        search-ring
+        regexp-search-ring))
+#+end_src
+
+*** Hide Toolbar & Menu
+
+#+begin_src emacs-lisp
+(when window-system
+  (tooltip-mode -1)
+  (tool-bar-mode -1)
+  (menu-bar-mode -1)
+  (scroll-bar-mode -1))
+#+end_src
+ 
+*** Winner mode - undo and redo window configuration
+
+Use =C-c <left>= and =C-c <right>= to switch between window configurations.
+
+#+begin_src emacs-lisp
+  (xyz/package-install 'winner)
+  (use-package winner
+    :config (winner-mode 1))
+#+end_src
+
+*** Change "yes or no" to "y or n"
+
+#+begin_src emacs-lisp
+(fset 'yes-or-no-p 'y-or-n-p)
+#+end_src
+
+*** Helm - interactive completion
+
+Helm makes it easy to complete various things. I find it to be easier
+to configure than ido in order to get completion in as many places as
+possible, although I prefer ido's way of switching buffers.
+
+#+begin_src emacs-lisp
+    (use-package helm
+      :init
+      (progn 
+        (require 'helm-config) 
+        (setq helm-candidate-number-limit 10)
+        ;; From https://gist.github.com/antifuchs/9238468
+        (setq helm-idle-delay 0.0 ; update fast sources immediately (doesn't).
+              helm-input-idle-delay 0.01  ; this actually updates things
+                                            ; reeeelatively quickly.
+              helm-quick-update t
+              helm-M-x-requires-pattern nil
+              helm-ff-skip-boring-files t)
+        (helm-mode))
+      :config
+      (progn
+        ;; I don't like the way switch-to-buffer uses history, since
+        ;; that confuses me when it comes to buffers I've already
+        ;; killed. Let's use ido instead.
+        (add-to-list 'helm-completing-read-handlers-alist '(switch-to-buffer . ido)))
+      :bind (("C-c h" . helm-mini)))
+    (ido-mode -1) ;; Turn off ido mode in case I enabled it accidentally
+#+end_src
+
+*** Set up a light-on-dark color scheme
+
+I like light on dark because I find it to be more restful. The
+color-theme in ELPA was a little odd, though, so we define some advice to make
+it work. Some things still aren't quite right.
+
+#+begin_src emacs-lisp
+  (defadvice color-theme-alist (around xyz activate)
+    (if (ad-get-arg 0)
+        ad-do-it
+      nil))
+  (xyz/package-install 'color-theme)
+  (xyz/package-install 'color-theme-solarized)
+  (defun xyz/setup-color-theme ()
+    (interactive)
+    (color-theme-solarized 'dark)
+    (set-face-foreground 'secondary-selection "darkblue")
+    (set-face-background 'secondary-selection "lightblue")
+    (set-face-background 'font-lock-doc-face "black")
+    (set-face-foreground 'font-lock-doc-face "wheat")
+    (set-face-background 'font-lock-string-face "black")
+    (set-face-foreground 'org-todo "green")
+    (set-face-background 'org-todo "black"))
+ 
+  (use-package color-theme
+    :init
+    (when window-system
+      (xyz/setup-color-theme)))
+#+end_src
+
+*** Undo tree mode - visualize your undos and branches
+
+People often struggle with the Emacs undo model, where there's really no concept of "redo" - you simply undo the undo. 
+# 
+This lets you use =C-x u= (=undo-tree-visualize=) to visually walk through the changes you've made, undo back to a certain point (or redo), and go down different branches.
+
+#+begin_src emacs-lisp
+  (use-package undo-tree
+    :init
+    (progn
+      (global-undo-tree-mode)
+      (setq undo-tree-visualizer-timestamps t)
+      (setq undo-tree-visualizer-diff t)))
+#+end_src
+
+*** Help - guide-key
+
+#+begin_src emacs-lisp
+(use-package guide-key
+  :init
+  (setq guide-key/guide-key-sequence '("C-x r" "C-x 4" "C-c"))
+  (guide-key-mode 1))  ; Enable guide-key-mode
+#+end_src
+
+*** UTF-8
+
+#+begin_src emacs-lisp
+(prefer-coding-system 'utf-8)
+(when (display-graphic-p)
+  (setq x-select-request-type '(UTF8_STRING COMPOUND_TEXT TEXT STRING)))
+#+end_src
+** Navigation
+
+*** Register - frequently accessed files
+
+Use =C-x r j= to jump to a file or other location quickly.
+
+#+begin_src emacs-lisp :results silent
+  (mapcar
+   (lambda (r)
+     (set-register (car r) (cons 'file (cdr r))))
+   '((?b . "~/baiduyun/public/personal/books.org")
+     (?m . "~/mstar/management.org")
+     (?l . "~/baiduyun/public/personal/learning.org")
+     (?o . "~/baiduyun/public/personal/organizer.org")
+     (?p . "~/mstar/projects.org")
+     (?r . "~/baiduyun/public/personal/routines.org")
+     (?x . "~/.emacs.d/xyz.org")))
+#+end_src
+
+*** Help-swoop - quickly finding lines
+
+Use =Ctrl-Shift-s= to be a fast way to find things.
+
+#+BEGIN_SRC emacs-lisp
+(use-package help-swoop
+  :bind (("C-S-s" . help-swoop)))
+#+END_SRC
+
+*** Windmove - switching between windows
+
+#+begin_src emacs-lisp
+  (use-package windmove
+    :bind
+    (("<f2> <right>" . windmove-right)
+     ("<f2> <left>" . windmove-left)
+     ("<f2> <up>" . windmove-up)
+     ("<f2> <down>" . windmove-down)))
+#+end_src
+
+*** Make window splitting more useful
+
+#+begin_src emacs-lisp
+(defun xyz/vsplit-last-buffer (prefix)
+  "Split the window vertically and display the previous buffer."
+  (interactive "p")
+  (split-window-vertically)
+  (other-window 1 nil)
+  (unless prefix
+    (switch-to-next-buffer)))
+(defun xyz/hsplit-last-buffer (prefix)
+  "Split the window horizontally and display the previous buffer."
+  (interactive "p")
+  (split-window-horizontally)
+  (other-window 1 nil)
+  (unless prefix (switch-to-next-buffer)))
+(bind-key "C-x 2" 'xyz/vsplit-last-buffer)
+(bind-key "C-x 3" 'xyz/hsplit-last-buffer)
+#+end_src
+
+*** Find-Dired
+
+Use =dired= to list files in directory
+Use =find-dired= to list sub directory
+
+#+begin_src emacs-lisp
+(require 'find-dired)
+(setq find-ls-option '("-print0 | xargs -0 ls -ld" . "-ld"))
+#+end_src
+
+*** Recent files
+
+#+begin_src emacs-lisp
+(require 'recentf)
+(setq recentf-max-saved-items 200
+      recentf-max-menu-items 15)
+(recentf-mode)
+#+end_src
+
+** Org
+
+*** Keyboard shortcuts - bind
+
+#+BEGIN_SRC emacs-lisp
+  (bind-key "C-c c" 'org-capture)
+  (bind-key "C-c a" 'org-agenda)
+  (bind-key "C-c l" 'org-store-link)
+  (bind-key "C-c L" 'org-insert-link-global)
+  (bind-key "C-c O" 'org-open-at-point-global)
+  (bind-key "<f9> <f9>" 'org-agenda-list)
+  (bind-key "<f9> <f8>" (lambda () (interactive) (org-capture nil "c")))
+  (bind-key "C-TAB" 'org-cycle org-mode-map)
+  (bind-key "C-c v" 'org-show-todo-tree org-mode-map)
+  (bind-key "C-c C-r" 'org-refile org-mode-map)
+  (bind-key "C-c r" 'org-reveal org-mode-map)
+#+END_SRC
+
+*** Keyboard shortcuts - visibility
+
+| <TAB>             | (org-cycle)                 | Subtree cycling             |
+| S-<TAB>           | (org-global-cycle           | Global cycling              |
+| C-u C-u <TAB>     | (org-set-startup-visibility | Switch back to the startup  |
+| C-u C-u C-u <TAB> | (show-all)                  | Show all, including drawers |
+
+*** Keyboard shortcuts - motion
+
+| C-c C-n | (outline-next-visible-heading)     | Next heading                     |
+| C-c C-p | (outline-previous-visible-heading) | Previous heading                 |
+| C-c C-f | (org-forward-same-level)           | Next heading same level          |
+| C-c C-b | (org-backward-same-level)          | Previous heading same level      |
+| C-c C-u | (outline-up-heading)               | Backward to higher level heading |
+| C-c C-j | (org-goto)                         | Jump without changing            |
+
+*** keyboard shortcuts - structure
+
+| M-RET       | (org-insert-heading)                      | Insert a new heading                 |
+| C-RET       | (org-insert-heading-respect-content)      | Insert a new heading after the body  |
+| M-S-RET     | (org-insert-todo-heading)                 | Insert new TODO entry                |
+| C-S-RET     | (org-insert-todo-heading-respect-content) | Insert new TODO entry after the body |
+| M-left      | (org-do-promote)                          | Promote heading by one level         |
+| M-right     | (org-do-demote)                           | Demote heading by one level          |
+| M-up        |                                           | Move items up                        |
+| M-down      |                                           | Move items down                      |
+| M-S-left    | (org-promote-subtree)                     | Promote subtree by one level         |
+| M-S-right   | (org-demote-subtree)                      | Demote subtree by one level          |
+| M-h         | (org-mark-element)                        | Mark the element at point            |
+| C-c @       | (org-mark-subtree)                        | Mark the subtree at point            |
+| C-c C-x C-w | (org-cut-subtree)                         | Kill subtree                         |
+| C-c C-x M-w | (org-copy-subtree)                        | Copy subtree                         |
+| C-c C-x C-y | (org-paste-subtree)                       | Yank subtree from kill ring          |
+| C-x n s     | (org-narrow-to-subtree)                   | Narrow buffer to subtree             |
+| C-x n b     | (org-narrow-to-block)                     | Narrow buffer to block               |
+| C-x n w     | (widen)                                   | Widen buffer to remove narrowing     |
+| C-c C-x c   | (org-clone-subtree-with-time-shift)       | Clone subtree by making copies       |
+| C-c C-w     | (org-refile)                              | Refile entry or region               |
+
+*** Keyboard shortcuts - table
+
+|--------------------------+-------------------------------------------+---------------------------------------------|
+| C-c vertical             | (org-table-create-or-convert-from-region) | Create table                                |
+| C-c C-c                  | (org-table-align)                         | Re-align                                    |
+| <TAB>                    | (org-table-next-field)                    | Re-align, move to next field                |
+| S-TAB                    | (org-table-previous-field)                | Re-align, move to previous field            |
+| M-a                      | (org-table-beginning-of-field)            | Move to begining of current table field     |
+| M-e                      | (org-table-end-of-field)                  | Move to end of current table field          |
+| M-left                   | (org-table-move-column-left)              | Move the current column to left             |
+| M-right                  | (org-table-move-column-right)             | Move the current column to right            |
+| M-up                     | (org-table-move-row-up)                   | Move the current row up                     |
+| M-down                   | (org-table-move-row-down)                 | Move the current row down                   |
+| M-S-left                 | (org-table-delete-column)                 | Kill the current column                     |
+| M-S-right                | (org-talbe-insert-column)                 | Insert a new column to the left             |
+| M-S-up                   | (org-table-kill-row)                      | Kill the current row or horizontal line     |
+| M-S-down                 | (org-table-insert-row)                    | Insert a new row above the current row      |
+| C-c -                    | (org-table-insert-hline)                  | Insert a horizontal line below current row  |
+| C-c RET                  | (org-table-hline-and-move)                | Insert a horizontal line below current row  |
+| C-c C-x C-w              | (org-table-cut-region)                    | Kill region                                 |
+| C-c C-x M-w              | (org-table-copy-region)                   | Copy region                                 |
+| C-c C-x C-y              | (org-table-paste-rectangle)               | Paste region                                |
+|--------------------------+-------------------------------------------+---------------------------------------------|
+| C-c +                    | (org-table-sum)                           | Sum the numbers in current column           |
+|                          |                                           | The result is shown in the echo area and    |
+|                          |                                           | can be inserted with C-y                    |
+|--------------------------+-------------------------------------------+---------------------------------------------|
+| C-c '                    | (org-table-edit-field)                    | Edit the current field in a separate window |
+| M-x org-table-import RET |                                           | Import a file as a table                    |
+| M-x org-talbe-export RET |                                           | Export the table                            |
+|--------------------------+-------------------------------------------+---------------------------------------------|
+
+*** Keyboard shortcuts - Hyperlinks
+
+| C-c l       | (org-store-link)           | Store a link to the current location         |
+| C-c C-l     | (org-insert-link)          | Insert a link or edit                        |
+| C-u C-c C-l |                            | a link to a file will be inserted            |
+| C-c C-o     | (org-open-at-point)        | Open link at point                           |
+| C-c C-x C-v | (org-toggle-inline-images) | Toggle the inline display of linked images   |
+| C-c %       | (org-mark-ring-push)       | Push the current position onto the mark ring |
+| C-c &       | (org-mark-ring-goto)       | Jump back to a recorded position             |
+| C-c C-x C-n | (org-next-link)            | Move forward to the next link in the buffer  |
+| C-c C-x C-p | (org-previous-link)        | Move backward to the next link in the buffer |
+
+*** Keyboard shortcuts - TODO items
+
+| C-c C-t     | (org-todo)                    | choose TODO state of the current item   |
+| C-u C-c C-t | (org-use-fast-todo-selection) | cycling states                          |
+| C-S-<right> |                               |                                         |
+| C-S-<left>  |                               | walk through all keywords from all sets |
+
+*** Keyboard shortcuts - Checkboxes
+
+| C-c C-c     |                       |                                                      |
+| C-c C-x C-b | (org-toggle-checkbox) | Toggle checkbox status or checkbox presence at point |
+
+**** test1
+
+  - [ ] call people
+  - [X] peter
+  
+**** test2
+**** test3
+
+
+*** My files
+
+#<<org-files>>
+
+| organizer.org  | The main org file, for org-capture, tasks, weekly |
+| projects.org   | The mstar project details                         |
+| learning.org   | Learning plan                                     |
+| management.org | The team management                               |
+| routines.org   | The routine                                       |
+| tracking.org   | Temporary Org file for tracking various things    |
+| delegation.org | Templates for assigning tasks                     |
+
+*** Modules
+
+#+begin_src emacs-lisp
+  (setq org-modules '(org-bbdb 
+                      org-gnus
+                      org-drill
+                      org-info
+                      org-jsinfo
+                      org-habit
+                      org-irc
+                      org-mouse
+                      org-annotate-file
+                      org-eval
+                      org-expiry
+                      org-interactive-query
+                      org-man
+                      org-panel
+                      org-screen
+                      org-toc))
+(org-load-modules-maybe t)
+(setq org-expiry-inactive-timestamps t)
+#+end_src
+
+*** Taking notes
+
+#+BEGIN_SRC emacs-lisp
+  (setq org-directory "~/baiduyun/public/personal")
+  (setq org-default-notes-file "~/baiduyun/public/personal/organizer.org")
+#+END_SRC
+
+*** Templates
+
+#+BEGIN_SRC emacs-lisp
+
+  (setq org-capture-templates
+    `(("o" "Tasks" entry (file+headline "~/baiduyun/public/personal/organizer.org" "Tasks") "* TODO %?\n %i\n %a")
+      ("p" "Projects" entry (file+headline "~/mstar/projects.org" "Tasks") "* TODO %?\n %i\n %a")
+      ("do" "Done - Task" entry (file+headline "~/baiduyun/public/personal/organizer.org" "Tasks") "* DONE %?\nSCHEDULED: %^t\n")
+      ("dp" "Done - Project" entry (file+headline "~/mstar/projects.org" "Tasks") "* DONE %?\nSCHEDULED: %^t\n")
+      ("b" "Book" entry (file+datetree "~/baiduyun/public/personal/books.org" "Inbox") "* %^{Title} %^g\n%i\n%?\nREVIEW: %^t\n %a" :clock-in :clock-resume)
+      ("n" "Notes" item (file+datetree "~/baiduyun/public/personal/organizer.org" "Notes"))))
+
+#+END_SRC
+    
+*** Track TODO state
+
+#+BEGIN_SRC emacs-lisp
+
+  (setq org-todo-keywords
+    '((sequence "TODO(t)" "TOBLOG(b)")
+      (sequence "STARTED(s)" "WAITING(w@/!)")
+      (sequence "SOMEDAY(.)" "|" "DONE(x!)" "CANCELLED(c@)")
+      (sequence "TODELEGATE(-)" "DELEGATED(d)")))
+
+#+END_SRC
+
+*** Tag tasks with GTD-ish context
+
+#+BEGIN_SRC emacs-lisp
+
+  (setq org-tag-alist '(("@work" . ?b)
+                        ("@home" . ?h)
+                        ("@writing" . ?w)
+                        ("@errands" . ?e)
+                        ("@drawing" . ?d)
+                        ("@coding" . ?c)
+                        ("@phone" . ?p)
+                        ("@reading" . ?r)
+                        ("@computer" . ?l)
+                        ("@quantified" . ?q)))
+
+#+END_SRC
+
+
+** Coding
+*** Magit 
+
+
+
+
